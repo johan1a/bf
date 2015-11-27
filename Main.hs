@@ -1,7 +1,6 @@
 module Main where
 
 import Debug.Trace
-import Data.List.Split
 import Data.Char
 
 
@@ -18,6 +17,7 @@ type ProgramState = (Source, Int, Buffer, Int)
 bufferSize = 10
 
 helloWorld = run "++++++++[>++++[>++>+++>+++>+<<<<-]>+>+>->>+[<]<-]>>.>---.+++++++..+++.>>.<-.<.+++.------.--------.>>+.>++."
+firstHelloWorld = debug "++++++++[>++++[>++>+++>+++>+<<<<-]>+>+>->>+[<]<-]"
 
 main = print "blabla"
 
@@ -51,8 +51,8 @@ execute :: ProgramState -> IO ProgramState
 execute (source, currentCmd, buffer, pointer) 
     | currentCmd == (length source) = return (source, currentCmd, buffer, pointer)
     | otherwise = do
-        nextState <- executeCommand (source, currentCmd, buffer, pointer) (source !! currentCmd) 
-        execute nextState
+        nextState <- (executeCommand (source, currentCmd, buffer, pointer) (source !! currentCmd) )
+        execute  nextState
 
 executeCommand :: ProgramState -> Command -> IO ProgramState
 executeCommand (source, currentCmd, buffer, pointer) ">" = return $ (source, currentCmd + 1, buffer, pointer + 1)
@@ -62,10 +62,16 @@ executeCommand (source, currentCmd, buffer, pointer) "-" = return $ (source, cur
 executeCommand (source, currentCmd, buffer, pointer) "." = do
     putChar $ chr (buffer !! pointer)
     return (source, currentCmd + 1, buffer, pointer)
-
 --execute ps "," = read ps
-executeCommand (source, currentCmd, buffer, pointer) "[" = return $ condJumpForward (source, currentCmd, buffer, pointer)
-executeCommand (source, currentCmd, buffer, pointer) "]" = return $ condJumpBack (source, currentCmd, buffer, pointer)
+executeCommand (source, currentCmd, buffer, pointer) "[" 
+    | (buffer !! pointer) == 0 = return $ condJumpForward (source, currentCmd, buffer, pointer)
+    | otherwise = return $ (source, currentCmd + 1, buffer, pointer)
+
+executeCommand (source, currentCmd, buffer, pointer) "]" 
+    | (buffer !! pointer) /= 0 = return $ condJumpBack (source, currentCmd, buffer, pointer)
+    | otherwise = return $ (source, currentCmd + 1, buffer, pointer)
+
+executeCommand (source, currentCmd, buffer, pointer) _ = return $ (source, currentCmd + 1, buffer, pointer)
 
 condJumpBack :: ProgramState -> ProgramState
 condJumpBack (source, currentCmd, buffer, pointer) = condJump_ (source, (currentCmd - 1), buffer, pointer) (-1) 1
@@ -76,6 +82,8 @@ condJumpForward (source, currentCmd, buffer, pointer) = condJump_ (source, curre
 condJump_ :: ProgramState -> Int -> Int -> ProgramState
 condJump_ (source, currentCmd, buffer, pointer) modifier 0 = (source, currentCmd, buffer, pointer)
 condJump_ (source, currentCmd, buffer, pointer) modifier bracketCount 
+    | (source !! currentCmd) == "[" && bracketCount == 1 && modifier == -1 = (source, currentCmd + 1, buffer, pointer) 
+    | (source !! currentCmd) == "]" && bracketCount == 1 && modifier == 1 = (source, currentCmd + 1, buffer, pointer) 
     | (source !! currentCmd) == "[" = condJump_ (source, currentCmd + modifier, buffer, pointer) modifier (bracketCount + modifier)
     | (source !! currentCmd) == "]" = condJump_ (source, currentCmd + modifier, buffer, pointer) modifier (bracketCount - modifier)
     | otherwise = condJump_ (source, currentCmd + modifier, buffer, pointer) modifier bracketCount
