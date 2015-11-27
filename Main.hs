@@ -14,7 +14,7 @@ type ProgramState = (Source, Int, Buffer, Int)
 --  --program <- (execute (programState ">>+++"))
 --  --return ()
 
-bufferSize = 10
+bufferSize = 100000
 
 helloWorld = run "++++++++[>++++[>++>+++>+++>+<<<<-]>+>+>->>+[<]<-]>>.>---.+++++++..+++.>>.<-.<.+++.------.--------.>>+.>++."
 firstHelloWorld = debug "++++++++[>++++[>++>+++>+++>+<<<<-]>+>+>->>+[<]<-]"
@@ -28,14 +28,14 @@ run s = do
     return ()
 
 debug :: String -> IO ProgramState
-debug s = execute (programState s)
+debug s = execute $ programState s
 
 
 programState :: String -> ProgramState
 programState string = (toSource string, 0, makeBuffer, 0)
 
 toSource :: String -> Source
-toSource ss =  (toChunks ss )
+toSource ss = toChunks ss 
 
 toChunks :: String -> [String]
 toChunks [] = []
@@ -62,7 +62,6 @@ executeCommand (source, currentCmd, buffer, pointer) "-" = return $ (source, cur
 executeCommand (source, currentCmd, buffer, pointer) "." = do
     putChar $ chr (buffer !! pointer)
     return (source, currentCmd + 1, buffer, pointer)
---execute ps "," = read ps
 executeCommand (source, currentCmd, buffer, pointer) "[" 
     | (buffer !! pointer) == 0 = return $ condJumpForward (source, currentCmd, buffer, pointer)
     | otherwise = return $ (source, currentCmd + 1, buffer, pointer)
@@ -97,3 +96,6 @@ decrement buffer pointer = update pointer ((buffer !! pointer) - 1) buffer
 
 update :: Num a => Int -> a -> [a] -> [a]
 update i x ss = (take i ss) ++ [x] ++ (drop (i + 1) ss)
+
+
+wtf = run "+++[>+++++<-]>>+<[>>++++>++>+++++>+++++>+>>+<++[++<]>---]>++++.>>>.+++++.>------.<--.+++++++++.>+.+.<<<<---.[>]<<.<<<.-------.>++++.<+++++.+.>-----.>+.<++++.>>++.>-----.<<<-----.+++++.-------.<--.<<<.>>>.<<+.>------.-..--.+++.-----<++.<--[>+<-]>>>>>--.--.<++++.>>-.<<<.>>>--.>.<<<<-----.>----.++++++++.----<+.+++++++++>>--.+.++<<<<.[>]<.>>,[>>+++[<+++++++>-]<[<[-[-<]]>>[>]<-]<[<+++++>-[<+++>-[<-->-[<+++>-[<++++[>[->>]<[>>]<<-]>[<+++>-[<--->-[<++++>-[<+++[>[-[-[-[->>]]]]<[>>]<<-]>[<+>-[<->-[<++>-[<[-]>-]]]]]]]]]]]]]<[    -[-[>+<-]>]    <[<<<<.>+++.+.+++.-------.>---.++.<.>-.++<<<<.[>]>>>>>>>>>]    <[[<]>++.--[>]>>>>>>>>]    <[<<++..-->>>>>>]    <[<<..>>>>>]    <[<<..-.+>>>>]    <[<<++..---.+>>>]    <[<<<.>>.>>>>>]    <[<<<<-----.+++++>.----.+++.+>---.<<<-.[>]>]    <[<<<<.-----.>++++.<++.+++>----.>---.<<<.-[>]]    <[<<<<<----.>>.<<.+++++.>>>+.++>.>>]    <.>]>,]<<<<<.<+.>++++.<----.>>---.<<<-.>>>+.>.>.[<]>++.[>]<.>[Translates brainfuck to C. Assumes no-change-on-EOF or EOF->0.Generated C does no-change-on-EOF, and uses unistd.h read and write calls.Daniel B Cristofani (cristofdathevanetdotcom)http://www.hevanet.com/cristofd/brainfuck/]"
