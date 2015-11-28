@@ -3,21 +3,14 @@ module Main where
 import Debug.Trace
 import Data.Char
 
-
 type Command = String
 type Source = [Command]
 type Buffer = [Int]
 type ProgramState = (Source, Int, Buffer, Int)
 
---main = do
---  print "Inside main"
---  --program <- (execute (programState ">>+++"))
---  --return ()
-
-bufferSize = 10000
+bufferSize = 100
 
 helloWorld = run "++++++++[>++++[>++>+++>+++>+<<<<-]>+>+>->>+[<]<-]>>.>---.+++++++..+++.>>.<-.<.+++.------.--------.>>+.>++."
-
 
 run :: String -> IO ()
 run s = do 
@@ -59,11 +52,18 @@ executeCommand ps "-" = return $ decBuffer ps
 executeCommand ps "." = do
     printChar ps
     return $ step ps
+executeCommand ps "," = do
+    s <- readLn :: IO Int
+    return $ step $ store s ps
 executeCommand ps "[" 
     | zeroBuffer ps = return $ condJumpForward ps
 executeCommand ps "]" 
     | nonZeroBuffer ps = return $ condJumpBack ps
 executeCommand ps _ = return $ step ps
+
+trimnl = reverse . dropWhile (=='\n') . reverse
+
+store c (source, currentCmd, buffer, pointer) = (source, currentCmd, update pointer c buffer, pointer)
 
 -- Step forward to the next command
 step :: ProgramState -> ProgramState
@@ -79,12 +79,12 @@ incBuffer (source, currentCmd, buffer, pointer) = step (source, currentCmd, incr
 
 decBuffer (source, currentCmd, buffer, pointer) = step (source, currentCmd, decrement buffer pointer, pointer )
 
+printChar :: (t, t1, [Int], Int) -> IO ()
 printChar (_, _, buffer, pointer) = putChar $ chr (buffer !! pointer)
 
 zeroBuffer (_, _, buffer, pointer) = (buffer !! pointer) == 0
 
 nonZeroBuffer (_, _, buffer, pointer) = (buffer !! pointer) /= 0
-
 
 condJumpBack :: ProgramState -> ProgramState
 condJumpBack (source, currentCmd, buffer, pointer) = condJump_ (source, currentCmd - 1, buffer, pointer) (-1) 1
