@@ -14,12 +14,10 @@ type ProgramState = (Source, Int, Buffer, Int)
 --  --program <- (execute (programState ">>+++"))
 --  --return ()
 
-bufferSize = 100000
+bufferSize = 10000
 
 helloWorld = run "++++++++[>++++[>++>+++>+++>+<<<<-]>+>+>->>+[<]<-]>>.>---.+++++++..+++.>>.<-.<.+++.------.--------.>>+.>++."
-firstHelloWorld = debug "++++++++[>++++[>++>+++>+++>+<<<<-]>+>+>->>+[<]<-]"
 
-main = print "blabla"
 
 run :: String -> IO ()
 run s = do 
@@ -30,62 +28,66 @@ run s = do
 debug :: String -> IO ProgramState
 debug s = execute $ programState s
 
-
 programState :: String -> ProgramState
-programState string = (toSource string, 0, makeBuffer, 0)
-
-toSource :: String -> Source
-toSource ss = toChunks ss 
+programState string = (toChunks string, 0, makeBuffer, 0)
 
 toChunks :: String -> [String]
-toChunks [] = []
-toChunks (s:ss) = [[s]] ++ toChunks ss
+toChunks = map (: [])
 
 charToString :: Char -> String
 charToString ss = [ss]
 
 makeBuffer :: [Int]
-makeBuffer = take bufferSize $ repeat 0
+makeBuffer = replicate bufferSize 0
 
 execute :: ProgramState -> IO ProgramState
-execute (source, currentCmd, buffer, pointer) 
-    | currentCmd == (length source) = return (source, currentCmd, buffer, pointer)
+execute ps
+    | terminated ps = return ps
     | otherwise = do
-        nextState <- (executeCommand (source, currentCmd, buffer, pointer) (source !! currentCmd) )
+        nextState <- executeCommand ps $ getCurrentCmd ps
         execute  nextState
+
+terminated (source, currentCmd, buffer, pointer) = currentCmd == length source
+
+getCurrentCmd (source, currentCmd, buffer, pointer) = source !! currentCmd
 
 executeCommand :: ProgramState -> Command -> IO ProgramState
 executeCommand ps ">" = return $ incPointer ps
 executeCommand ps "<" = return $ decPointer ps
 executeCommand ps "+" = return $ incBuffer ps
 executeCommand ps "-" = return $ decBuffer ps
-executeCommand (source, currentCmd, buffer, pointer) "." = do
-    putChar $ chr (buffer !! pointer)
-    return (source, currentCmd + 1, buffer, pointer)
-executeCommand (source, currentCmd, buffer, pointer) "[" 
-    | (buffer !! pointer) == 0 = return $ condJumpForward (source, currentCmd, buffer, pointer)
-    | otherwise = return $ (source, currentCmd + 1, buffer, pointer)
-
-executeCommand (source, currentCmd, buffer, pointer) "]" 
-    | (buffer !! pointer) /= 0 = return $ condJumpBack (source, currentCmd, buffer, pointer)
-    | otherwise = return $ (source, currentCmd + 1, buffer, pointer)
-
+executeCommand ps "." = do
+    printChar ps
+    return $ step ps
+executeCommand ps "[" 
+    | zeroBuffer ps = return $ condJumpForward ps
+executeCommand ps "]" 
+    | nonZeroBuffer ps = return $ condJumpBack ps
 executeCommand ps _ = return $ step ps
 
 -- Step forward to the next command
 step :: ProgramState -> ProgramState
-step (source, currentCmd, buffer, pointer) = (source, currentCmd + 1, buffer, pointer)
+step = inc 1
 
-incPointer (source, currentCmd, buffer, pointer) = (source, currentCmd + 1, buffer, pointer + 1)
+incPointer :: ProgramState -> ProgramState
+incPointer ps = step $ inc 3 ps
 
-decPointer (source, currentCmd, buffer, pointer) = (source, currentCmd + 1, buffer, pointer - 1)
+decPointer :: ProgramState -> ProgramState
+decPointer ps = step $ dec 3 ps
 
-incBuffer (source, currentCmd, buffer, pointer) = (source, currentCmd + 1, (increment buffer pointer), pointer )
+incBuffer (source, currentCmd, buffer, pointer) = step (source, currentCmd, increment buffer pointer, pointer )
 
-decBuffer (source, currentCmd, buffer, pointer) = (source, currentCmd + 1, (decrement buffer pointer), pointer )
+decBuffer (source, currentCmd, buffer, pointer) = step (source, currentCmd, decrement buffer pointer, pointer )
+
+printChar (_, _, buffer, pointer) = putChar $ chr (buffer !! pointer)
+
+zeroBuffer (_, _, buffer, pointer) = (buffer !! pointer) == 0
+
+nonZeroBuffer (_, _, buffer, pointer) = (buffer !! pointer) /= 0
+
 
 condJumpBack :: ProgramState -> ProgramState
-condJumpBack (source, currentCmd, buffer, pointer) = condJump_ (source, (currentCmd - 1), buffer, pointer) (-1) 1
+condJumpBack (source, currentCmd, buffer, pointer) = condJump_ (source, currentCmd - 1, buffer, pointer) (-1) 1
 
 condJumpForward :: ProgramState -> ProgramState
 condJumpForward (source, currentCmd, buffer, pointer) = condJump_ (source, currentCmd + 1, buffer, pointer) 1 1
@@ -99,7 +101,6 @@ condJump_ (source, currentCmd, buffer, pointer) modifier bracketCount
     | (source !! currentCmd) == "]" = condJump_ (source, currentCmd + modifier, buffer, pointer) modifier (bracketCount - modifier)
     | otherwise = condJump_ (source, currentCmd + modifier, buffer, pointer) modifier bracketCount
 
-
 increment :: Buffer -> Int -> Buffer
 increment buffer pointer = update pointer ((buffer !! pointer) + 1) buffer
 
@@ -107,7 +108,14 @@ decrement :: Buffer -> Int -> Buffer
 decrement buffer pointer = update pointer ((buffer !! pointer) - 1) buffer
 
 update :: Num a => Int -> a -> [a] -> [a]
-update i x ss = (take i ss) ++ [x] ++ (drop (i + 1) ss)
+update i x ss = take i ss ++ [x] ++ drop (i + 1) ss
 
+inc :: Num a => Int -> ProgramState -> ProgramState
+inc 1 (a, b, c, d) = (a, b + 1, c, d)
+inc 3 (a, b, c, d) = (a, b, c, d + 1)
+
+dec :: Num a => Int -> ProgramState -> ProgramState
+dec 1 (a, b, c, d) = (a, b - 1, c, d)
+dec 3 (a, b, c, d) = (a, b, c, d - 1)
 
 wtf = run "+++[>+++++<-]>>+<[>>++++>++>+++++>+++++>+>>+<++[++<]>---]>++++.>>>.+++++.>------.<--.+++++++++.>+.+.<<<<---.[>]<<.<<<.-------.>++++.<+++++.+.>-----.>+.<++++.>>++.>-----.<<<-----.+++++.-------.<--.<<<.>>>.<<+.>------.-..--.+++.-----<++.<--[>+<-]>>>>>--.--.<++++.>>-.<<<.>>>--.>.<<<<-----.>----.++++++++.----<+.+++++++++>>--.+.++<<<<.[>]<.>>,[>>+++[<+++++++>-]<[<[-[-<]]>>[>]<-]<[<+++++>-[<+++>-[<-->-[<+++>-[<++++[>[->>]<[>>]<<-]>[<+++>-[<--->-[<++++>-[<+++[>[-[-[-[->>]]]]<[>>]<<-]>[<+>-[<->-[<++>-[<[-]>-]]]]]]]]]]]]]<[    -[-[>+<-]>]    <[<<<<.>+++.+.+++.-------.>---.++.<.>-.++<<<<.[>]>>>>>>>>>]    <[[<]>++.--[>]>>>>>>>>]    <[<<++..-->>>>>>]    <[<<..>>>>>]    <[<<..-.+>>>>]    <[<<++..---.+>>>]    <[<<<.>>.>>>>>]    <[<<<<-----.+++++>.----.+++.+>---.<<<-.[>]>]    <[<<<<.-----.>++++.<++.+++>----.>---.<<<.-[>]]    <[<<<<<----.>>.<<.+++++.>>>+.++>.>>]    <.>]>,]<<<<<.<+.>++++.<----.>>---.<<<-.>>>+.>.>.[<]>++.[>]<.>[Translates brainfuck to C. Assumes no-change-on-EOF or EOF->0.Generated C does no-change-on-EOF, and uses unistd.h read and write calls.Daniel B Cristofani (cristofdathevanetdotcom)http://www.hevanet.com/cristofd/brainfuck/]"
