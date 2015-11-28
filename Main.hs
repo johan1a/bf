@@ -55,10 +55,10 @@ execute (source, currentCmd, buffer, pointer)
         execute  nextState
 
 executeCommand :: ProgramState -> Command -> IO ProgramState
-executeCommand (source, currentCmd, buffer, pointer) ">" = return $ (source, currentCmd + 1, buffer, pointer + 1)
-executeCommand (source, currentCmd, buffer, pointer) "<" = return $ (source, currentCmd + 1, buffer, pointer - 1)
-executeCommand (source, currentCmd, buffer, pointer) "+" = return $ (source, currentCmd + 1, (increment buffer pointer), pointer )
-executeCommand (source, currentCmd, buffer, pointer) "-" = return $ (source, currentCmd + 1, (decrement buffer pointer), pointer )
+executeCommand ps ">" = return $ incPointer ps
+executeCommand ps "<" = return $ decPointer ps
+executeCommand ps "+" = return $ incBuffer ps
+executeCommand ps "-" = return $ decBuffer ps
 executeCommand (source, currentCmd, buffer, pointer) "." = do
     putChar $ chr (buffer !! pointer)
     return (source, currentCmd + 1, buffer, pointer)
@@ -70,7 +70,19 @@ executeCommand (source, currentCmd, buffer, pointer) "]"
     | (buffer !! pointer) /= 0 = return $ condJumpBack (source, currentCmd, buffer, pointer)
     | otherwise = return $ (source, currentCmd + 1, buffer, pointer)
 
-executeCommand (source, currentCmd, buffer, pointer) _ = return $ (source, currentCmd + 1, buffer, pointer)
+executeCommand ps _ = return $ step ps
+
+-- Step forward to the next command
+step :: ProgramState -> ProgramState
+step (source, currentCmd, buffer, pointer) = (source, currentCmd + 1, buffer, pointer)
+
+incPointer (source, currentCmd, buffer, pointer) = (source, currentCmd + 1, buffer, pointer + 1)
+
+decPointer (source, currentCmd, buffer, pointer) = (source, currentCmd + 1, buffer, pointer - 1)
+
+incBuffer (source, currentCmd, buffer, pointer) = (source, currentCmd + 1, (increment buffer pointer), pointer )
+
+decBuffer (source, currentCmd, buffer, pointer) = (source, currentCmd + 1, (decrement buffer pointer), pointer )
 
 condJumpBack :: ProgramState -> ProgramState
 condJumpBack (source, currentCmd, buffer, pointer) = condJump_ (source, (currentCmd - 1), buffer, pointer) (-1) 1
@@ -79,7 +91,7 @@ condJumpForward :: ProgramState -> ProgramState
 condJumpForward (source, currentCmd, buffer, pointer) = condJump_ (source, currentCmd + 1, buffer, pointer) 1 1
 
 condJump_ :: ProgramState -> Int -> Int -> ProgramState
-condJump_ (source, currentCmd, buffer, pointer) modifier 0 = (source, currentCmd, buffer, pointer)
+condJump_ ps modifier 0 = ps
 condJump_ (source, currentCmd, buffer, pointer) modifier bracketCount 
     | (source !! currentCmd) == "[" && bracketCount == 1 && modifier == -1 = (source, currentCmd + 1, buffer, pointer) 
     | (source !! currentCmd) == "]" && bracketCount == 1 && modifier == 1 = (source, currentCmd + 1, buffer, pointer) 
